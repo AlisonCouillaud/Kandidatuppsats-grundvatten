@@ -1674,3 +1674,5 @@ if fig_sac is not None:
         bbox_inches="tight"
     )
     print(f"Figur sparad: multipel_regressions_sac_{filnamn_id}.png")
+
+plt.show()
