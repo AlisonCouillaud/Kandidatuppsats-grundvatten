@@ -173,7 +173,7 @@ data_path = funktion_las_in_observationsfil()
 observationsror_id = funktion_hamta_observationsror_id(data_path)
 
 # Ändra manuellt till "Rör A", "Rör B" eller "Rör C"
-observationsror_namn = "Rör C"
+observationsror_namn = "Rör A"
 
 filnamn_id = (
     observationsror_namn
@@ -463,7 +463,7 @@ def funktion_berakna_resultat_for_matchade_datapar(
     beta_1: float,
     osakerhetsmatt: float
 ):
-    """Beräknar prediktioner, intervall och residualer för matchade datapar."""
+    """Beräknar skattade värden, intervall och residualer för matchade datapar."""
 
     df = matchade_datapar.dropna(
         subset=["observationsvarde", "referensvarde"]
@@ -472,12 +472,12 @@ def funktion_berakna_resultat_for_matchade_datapar(
     if len(df) == 0:
         return None
 
-    df["prediktionsvarde"] = beta_0 + beta_1 * df["referensvarde"]
+    df["skattat_varde"] = beta_0 + beta_1 * df["referensvarde"]
 
-    df["nedre_intervallgrans"] = df["prediktionsvarde"] - osakerhetsmatt
-    df["ovre_intervallgrans"] = df["prediktionsvarde"] + osakerhetsmatt
+    df["nedre_intervallgrans"] = df["skattat_varde"] - osakerhetsmatt
+    df["ovre_intervallgrans"] = df["skattat_varde"] + osakerhetsmatt
 
-    df["residual"] = df["observationsvarde"] - df["prediktionsvarde"]
+    df["residual"] = df["observationsvarde"] - df["skattat_varde"]
 
     df["inom_osakerhetsintervall"] = (
         (df["observationsvarde"] >= df["nedre_intervallgrans"]) &
@@ -487,9 +487,9 @@ def funktion_berakna_resultat_for_matchade_datapar(
     return df
 
 
-# ---------------------------------------------------- Predikterad serie -----------------------------------------------------
+# ---------------------------------------------------- Skattad serie -----------------------------------------------------
 
-def funktion_skapa_predikterad_serie(
+def funktion_skapa_skattad_serie(
     referens_tidsserie: pd.Series,
     beta_0: float,
     beta_1: float,
@@ -497,7 +497,7 @@ def funktion_skapa_predikterad_serie(
     tidsserie_min: str,
     tidsserie_max: str
 ):
-    """Skapar predikterad serie för observationsröret utifrån valt referensrör."""
+    """Skapar skattad serie för observationsröret utifrån valt referensrör."""
 
     df = referens_tidsserie.loc[tidsserie_min:tidsserie_max].dropna().to_frame(
         "referensvarde"
@@ -506,10 +506,10 @@ def funktion_skapa_predikterad_serie(
     if len(df) == 0:
         return None
 
-    df["prediktionsvarde"] = beta_0 + beta_1 * df["referensvarde"]
+    df["skattat_varde"] = beta_0 + beta_1 * df["referensvarde"]
 
-    df["nedre_intervallgrans"] = df["prediktionsvarde"] - osakerhetsmatt
-    df["ovre_intervallgrans"] = df["prediktionsvarde"] + osakerhetsmatt
+    df["nedre_intervallgrans"] = df["skattat_varde"] - osakerhetsmatt
+    df["ovre_intervallgrans"] = df["skattat_varde"] + osakerhetsmatt
 
     return df
 
@@ -789,7 +789,7 @@ vald_referens_tidsserie_raw = referens_tidsserier_raw[
     str(valt_referensror_id)
 ].copy()
 
-predikterad_tidsserie_df = funktion_skapa_predikterad_serie(
+skattad_tidsserie_df = funktion_skapa_skattad_serie(
     referens_tidsserie=vald_referens_tidsserie_raw,
     beta_0=vald_referensrad["beta_0"],
     beta_1=vald_referensrad["beta_1"],
@@ -798,17 +798,17 @@ predikterad_tidsserie_df = funktion_skapa_predikterad_serie(
     tidsserie_max=tidsserie_max
 )
 
-if predikterad_tidsserie_df is None:
-    raise ValueError("Den predikterade tidsserien kunde inte skapas.")
+if skattad_tidsserie_df is None:
+    raise ValueError("Den skattade tidsserien kunde inte skapas.")
 
-print("\nPredikterad serie:")
+print("\nSkattad serie:")
 print(
     "Antal värden i observationsröret:",
     len(observations_tidsserie.loc[tidsserie_min:tidsserie_max].dropna())
 )
 print(
-    "Antal värden i predikterad serie:",
-    len(predikterad_tidsserie_df)
+    "Antal värden i skattad serie:",
+    len(skattad_tidsserie_df)
 )
 
 print("\nManuellt valt referensrör:")
@@ -834,13 +834,13 @@ def funktion_utvarderingsmatt(resultat_df: pd.DataFrame):
     """Beräknar MSE, RMSE och Durbin-Watson för residualerna."""
 
     df = resultat_df.dropna(
-        subset=["observationsvarde", "prediktionsvarde"]
+        subset=["observationsvarde", "skattat_varde"]
     ).copy()
 
     if len(df) == 0:
         return None
 
-    residualer = df["observationsvarde"] - df["prediktionsvarde"]
+    residualer = df["observationsvarde"] - df["skattat_varde"]
 
     mse = np.mean(residualer ** 2)
     rmse = np.sqrt(mse)
@@ -888,30 +888,30 @@ def funktion_formatera_datumaxel(ax, datum_min, datum_max):
 
 # ---------------------------------------------------- Huvudfigur -----------------------------------------------------
 
-def funktion_plotta_predikterad_tidsserie(
-    predikterad_tidsserie_df: pd.DataFrame,
+def funktion_plotta_skattad_tidsserie(
+    skattad_tidsserie_df: pd.DataFrame,
     observations_tidsserie: pd.Series,
     referens_namn: str,
     observationsror_namn: str,
     visa_osakerhetsintervall: bool = True
 ):
-    """Plottar predikterad serie, observationsvärden och osäkerhetsintervall."""
+    """Plottar skattad serie, observationsvärden och osäkerhetsintervall."""
 
     if visa_osakerhetsintervall:
-        df = predikterad_tidsserie_df.dropna(
+        df = skattad_tidsserie_df.dropna(
             subset=[
-                "prediktionsvarde",
+                "skattat_varde",
                 "nedre_intervallgrans",
                 "ovre_intervallgrans"
             ]
         ).copy()
     else:
-        df = predikterad_tidsserie_df.dropna(
-            subset=["prediktionsvarde"]
+        df = skattad_tidsserie_df.dropna(
+            subset=["skattat_varde"]
         ).copy()
 
     if len(df) == 0:
-        print("Det finns inga värden att plotta för den predikterade tidsserien.")
+        print("Det finns inga värden att plotta för den skattade tidsserien.")
         return None
 
     df = df.sort_index()
@@ -939,11 +939,11 @@ def funktion_plotta_predikterad_tidsserie(
 
     ax.plot(
         df.index,
-        df["prediktionsvarde"],
+        df["skattat_varde"],
         linestyle="-",
         linewidth=1.4,
         color="crimson",
-        label=f"Predikterad serie ({referens_namn})"
+        label=f"Skattad serie ({referens_namn})"
     )
 
     ax.plot(
@@ -965,7 +965,7 @@ def funktion_plotta_predikterad_tidsserie(
     ax.grid(True, alpha=0.3)
 
     alla_varden = pd.concat([
-        pd.Series(df["prediktionsvarde"].values),
+        pd.Series(df["skattat_varde"].values),
         pd.Series(obs.values)
     ]).dropna()
 
@@ -1163,8 +1163,8 @@ def funktion_plotta_sac_residualer(
 
 visa_osakerhetsintervall = True
 
-fig_huvud = funktion_plotta_predikterad_tidsserie(
-    predikterad_tidsserie_df=predikterad_tidsserie_df,
+fig_huvud = funktion_plotta_skattad_tidsserie(
+    skattad_tidsserie_df=skattad_tidsserie_df,
     observations_tidsserie=observations_tidsserie,
     referens_namn=valt_referensror_namn,
     observationsror_namn=observationsror_namn,
